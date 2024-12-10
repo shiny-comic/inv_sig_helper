@@ -18,7 +18,9 @@ pub enum FetchUpdateStatus {
     CannotFetchPlayerJS,
     NsigRegexCompileFailed,
     PlayerAlreadyUpdated,
+    SignatureExtractionFailed,
 }
+
 
 pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStatus> {
     let global_state = state.clone();
@@ -145,33 +147,39 @@ pub async fn fetch_update(state: Arc<GlobalState>) -> Result<(), FetchUpdateStat
     }
 
     // Extract signature function name
-    let sig_function_name = REGEX_SIGNATURE_FUNCTION
-        .captures(&player_javascript)
-        .unwrap()
-        .get(1)
-        .unwrap()
-        .as_str();
+    let sig_function_name = match REGEX_SIGNATURE_FUNCTION.captures(&player_javascript) {
+	Some(captures) => match captures.get(1) {
+	    Some(m) => m.as_str(),
+	    None => return Err(FetchUpdateStatus::NsigRegexCompileFailed),
+	},
+	None => return Err(FetchUpdateStatus::NsigRegexCompileFailed),
+    };
 
     let mut sig_function_body_regex_str: String = String::new();
     sig_function_body_regex_str += &sig_function_name.replace("$", "\\$");
     sig_function_body_regex_str += "=function\\([a-zA-Z0-9_]+\\)\\{.+?\\}";
 
-    let sig_function_body_regex = Regex::new(&sig_function_body_regex_str).unwrap();
+    let sig_function_body_regex = match Regex::new(&sig_function_body_regex_str) {
+	Ok(r) => r,
+	Err(_) => return Err(FetchUpdateStatus::NsigRegexCompileFailed),
+    };
 
-    let sig_function_body = sig_function_body_regex
-        .captures(&player_javascript)
-        .unwrap()
-        .get(0)
-        .unwrap()
-        .as_str();
+    let sig_function_body = match sig_function_body_regex.captures(&player_javascript) {
+	Some(captures) => match captures.get(0) {
+	    Some(m) => m.as_str(),
+	    None => return Err(FetchUpdateStatus::NsigRegexCompileFailed),
+	},
+	None => return Err(FetchUpdateStatus::NsigRegexCompileFailed),
+    };
 
-    // Get the helper object
-    let helper_object_name = REGEX_HELPER_OBJ_NAME
-        .captures(sig_function_body)
-        .unwrap()
-        .get(1)
-        .unwrap()
-        .as_str();
+    // Get the helper object 
+    let helper_object_name = match REGEX_HELPER_OBJ_NAME.captures(sig_function_body) {
+	Some(captures) => match captures.get(1) {
+	    Some(m) => m.as_str(),
+	    None => return Err(FetchUpdateStatus::NsigRegexCompileFailed),
+	},
+	None => return Err(FetchUpdateStatus::NsigRegexCompileFailed),
+    };
 
     let mut helper_object_body_regex_str = String::new();
     helper_object_body_regex_str += "(var ";
